@@ -1,4 +1,18 @@
-# pytorch-a2c-ppo-acktr
+# pytorch-a2c-ppo-acktr-icm
+
+---------------------------------
+
+PyTorch implementaion of this paper https://pathak22.github.io/noreward-rl/resources/icml17.pdf
+Now work with a2c only
+
+Usage:
+```bash
+python main.py --use-icm --env-name "PongNoFrameskip-v4"
+```
+
+Not work with Mujoco now, will be fix soon.
+
+---------------------------------
 
 ## Update 10/06/2017: added enjoy.py and a link to pretrained models!
 ## Update 09/27/2017: now supports both Atari and MuJoCo/Roboschool!
