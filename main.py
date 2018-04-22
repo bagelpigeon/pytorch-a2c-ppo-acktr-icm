@@ -2,6 +2,7 @@ import copy
 import glob
 import os
 import time
+import sys
 
 import gym
 import numpy as np
@@ -69,17 +70,17 @@ def main():
     obs_shape = (obs_shape[0] * args.num_stack, *obs_shape[1:])
 
     if len(envs.observation_space.shape) == 3:
-        actor_critic = CNNPolicy(obs_shape[0], envs.action_space, args.recurrent_policy)
+        actor_critic = CNNPolicy(obs_shape[0], envs.action_space, args.recurrent_policy, args.use_icm)
     else:
         assert not args.recurrent_policy, \
             "Recurrent policy is not implemented for the MLP controller"
-        actor_critic = MLPPolicy(obs_shape[0], envs.action_space)
+        actor_critic = MLPPolicy(obs_shape[0], envs.action_space, args.use_icm)
 
     if envs.action_space.__class__.__name__ == "Discrete":
         action_shape = 1
     else:
         action_shape = envs.action_space.shape[0]
-
+    
     if args.cuda:
         actor_critic.cuda()
 
@@ -117,12 +118,12 @@ def main():
     for j in range(num_updates):
         for step in range(args.num_steps):
             # Sample actions
-            value, action, action_log_prob, states = actor_critic.act(
+            value, action, action_log_prob, states, action_prob = actor_critic.act(
                     Variable(rollouts.observations[step], volatile=True),
                     Variable(rollouts.states[step], volatile=True),
                     Variable(rollouts.masks[step], volatile=True))
             cpu_actions = action.data.squeeze(1).cpu().numpy()
-
+            
             # Obser reward and next obs
             obs, reward, done, info = envs.step(cpu_actions)
             reward = torch.from_numpy(np.expand_dims(np.stack(reward), 1)).float()
@@ -143,6 +144,15 @@ def main():
                 current_obs *= masks
 
             update_current_obs(obs)
+
+            if args.use_icm:
+                bonus = actor_critic.get_bonus(
+                        args.eta,
+                        Variable(rollouts.observations[step], volatile=True),
+                        Variable(current_obs, volatile=True),
+                        Variable(action.data),
+                        Variable(action_prob.data))
+                reward = (reward + bonus.data.cpu())#.clamp(-1.0, 1.0)
             rollouts.insert(current_obs, states.data, action.data, action_log_prob.data, value.data, reward, masks)
 
         next_value = actor_critic.get_value(Variable(rollouts.observations[-1], volatile=True),
@@ -152,7 +162,7 @@ def main():
         rollouts.compute_returns(next_value, args.use_gae, args.gamma, args.tau)
 
         if args.algo in ['a2c', 'acktr']:
-            values, action_log_probs, dist_entropy, states = actor_critic.evaluate_actions(
+            values, action_log_probs, dist_entropy, states, action_probs = actor_critic.evaluate_actions(
                     Variable(rollouts.observations[:-1].view(-1, *obs_shape)),
                     Variable(rollouts.states[0].view(-1, actor_critic.state_size)),
                     Variable(rollouts.masks[:-1].view(-1, 1)),
@@ -183,8 +193,18 @@ def main():
                 fisher_loss.backward(retain_graph=True)
                 optimizer.acc_stats = False
 
+            loss = value_loss * args.value_loss_coef + action_loss - dist_entropy * args.entropy_coef
+
+            if args.use_icm:
+                inverse_loss, forward_loss = actor_critic.get_icm_loss(
+                        Variable(rollouts.observations[:-1].view(-1, *obs_shape)),
+                        Variable(rollouts.observations[1:].view(-1, *obs_shape)),
+                        Variable(rollouts.actions.view(-1, action_shape)),
+                        Variable(action_probs.data))
+                loss += ((1 - args.beta) * inverse_loss + args.beta * forward_loss) * 10
+
             optimizer.zero_grad()
-            (value_loss * args.value_loss_coef + action_loss - dist_entropy * args.entropy_coef).backward()
+            loss.backward()
 
             if args.algo == 'a2c':
                 nn.utils.clip_grad_norm(actor_critic.parameters(), args.max_grad_norm)
@@ -257,11 +277,14 @@ def main():
                        final_rewards.min(),
                        final_rewards.max(), dist_entropy.data[0],
                        value_loss.data[0], action_loss.data[0]))
+            if args.use_icm:
+                print("icm loss: inverse loss {:.5f}, forward loss {:.5f}".format(inverse_loss.data[0], forward_loss.data[0]))
+            sys.stdout.flush()
         if args.vis and j % args.vis_interval == 0:
             try:
                 # Sometimes monitor doesn't properly flush the outputs
                 win = visdom_plot(viz, win, args.log_dir, args.env_name,
-                                  args.algo, args.num_frames)
+                                  args.algo, args.num_frames, args.use_icm)
             except IOError:
                 pass
 

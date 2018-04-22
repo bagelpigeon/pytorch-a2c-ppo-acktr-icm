@@ -61,6 +61,12 @@ def get_args():
                         help='disables visdom visualization')
     parser.add_argument('--port', type=int, default=8097,
                         help='port to run the server on (default: 8097)')
+    parser.add_argument('--use-icm', action='store_true', default=False,
+                        help='use intrinsic curiosity module')
+    parser.add_argument('--eta', type=float, default=0.01,
+                        help='icm bonus weight (default: 0.01)')
+    parser.add_argument('--beta', type=float, default=0.2,
+                        help='icm forward loss weight (default: 0.2)')
     args = parser.parse_args()
 
     args.cuda = not args.no_cuda and torch.cuda.is_available()

@@ -101,11 +101,12 @@ color_defaults = [
 ]
 
 
-def visdom_plot(viz, win, folder, game, name, num_steps, bin_size=100, smooth=1):
+def visdom_plot(viz, win, folder, game, name, num_steps, use_icm, bin_size=100, smooth=1):
     tx, ty = load_data(folder, smooth, bin_size)
     if tx is None or ty is None:
         return win
-
+    if use_icm:
+        name += '+icm'
     fig = plt.figure()
     plt.plot(tx, ty, label="{}".format(name))
 
@@ -135,4 +136,38 @@ def visdom_plot(viz, win, folder, game, name, num_steps, bin_size=100, smooth=1)
 if __name__ == "__main__":
     from visdom import Visdom
     viz = Visdom()
-    visdom_plot(viz, None, '/tmp/gym/', 'BreakOut', 'a2c', bin_size=100, smooth=1)
+    tx, ty = load_data('logs/a2c', 1, 100)
+    fig = plt.figure()
+    plt.plot(tx, ty, label="{}".format('a2c'))
+
+    tick_fractions = np.array([0.1, 0.2, 0.4, 0.6, 0.8, 1.0])
+    ticks = tick_fractions * 2000000
+    tick_names = ["{:.0e}".format(tick) for tick in ticks]
+    plt.xticks(ticks, tick_names)
+    plt.xlim(0, 2000000 * 1.01)
+
+    tx, ty = load_data('logs/icm', 1, 100)
+    plt.plot(tx, ty, label="{}".format('a2c+icm'))
+
+    tick_fractions = np.array([0.1, 0.2, 0.4, 0.6, 0.8, 1.0])
+    ticks = tick_fractions * 2000000
+    tick_names = ["{:.0e}".format(tick) for tick in ticks]
+    plt.xticks(ticks, tick_names)
+    plt.xlim(0, 2000000 * 1.01)
+
+    plt.xlabel('Number of Timesteps')
+    plt.ylabel('Rewards')
+
+    plt.title('Breakout')
+    plt.legend(loc=4)
+    plt.show()
+    plt.draw()
+
+    image = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
+    image = image.reshape(fig.canvas.get_width_height()[::-1] + (3, ))
+    plt.close(fig)
+
+    # Show it in visdom
+    image = np.transpose(image, (2, 0, 1))
+    viz.image(image)
+    #visdom_plot(viz, None, '/tmp/gym/', 'BreakOut', 'a2c', bin_size=100, smooth=1)

@@ -35,7 +35,7 @@ class Categorical(nn.Module):
         action_log_probs = log_probs.gather(1, actions)
 
         dist_entropy = -(log_probs * probs).sum(-1).mean()
-        return action_log_probs, dist_entropy
+        return action_log_probs, dist_entropy, probs
 
 
 class DiagGaussian(nn.Module):
@@ -78,7 +78,7 @@ class DiagGaussian(nn.Module):
         action_log_probs = action_log_probs.sum(-1, keepdim=True)
         dist_entropy = 0.5 + 0.5 * math.log(2 * math.pi) + action_logstd
         dist_entropy = dist_entropy.sum(-1).mean()
-        return action_log_probs, dist_entropy
+        return action_log_probs, dist_entropy, torch.cat([action_mean, action_logstd], -1)
 
 
 def get_distribution(num_inputs, action_space):
