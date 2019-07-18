@@ -62,7 +62,7 @@ class ICM(torch.nn.Module):
         if cnn_head:
             self.head = NatureHead(num_inputs)
         if action_space.__class__.__name__ == "Discrete":
-            ction_space = action_space.n
+            action_space = action_space.n
         else:
             action_space = action_space.shape[0] * 2
         self.forward_model = nn.Sequential(

@@ -126,6 +126,7 @@ def main():
             
             # Obser reward and next obs
             obs, reward, done, info = envs.step(cpu_actions)
+            envs.render()
             reward = torch.from_numpy(np.expand_dims(np.stack(reward), 1)).float()
             episode_rewards += reward
 
@@ -275,10 +276,10 @@ def main():
                        final_rewards.mean(),
                        final_rewards.median(),
                        final_rewards.min(),
-                       final_rewards.max(), dist_entropy.data[0],
-                       value_loss.data[0], action_loss.data[0]))
+                       final_rewards.max(), dist_entropy.data.item(),
+                       value_loss.data.item(), action_loss.data.item()))
             if args.use_icm:
-                print("icm loss: inverse loss {:.5f}, forward loss {:.5f}".format(inverse_loss.data[0], forward_loss.data[0]))
+                print("icm loss: inverse loss {:.5f}, forward loss {:.5f}".format(inverse_loss.data.item(), forward_loss.data.item()))
             sys.stdout.flush()
         if args.vis and j % args.vis_interval == 0:
             try:
