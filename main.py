@@ -99,7 +99,10 @@ def main():
         obs = torch.from_numpy(obs).float()
         if args.num_stack > 1:
             current_obs[:, :-shape_dim0] = current_obs[:, shape_dim0:]
-        current_obs[:, -shape_dim0:] = obs
+        if "mario" in args.env_name:
+            current_obs[:, -shape_dim0:] = obs#.permute(0, 1, 3, 2)
+        else:
+            current_obs[:, -shape_dim0:] = obs
 
     obs = envs.reset()
     update_current_obs(obs)
@@ -119,9 +122,9 @@ def main():
         for step in range(args.num_steps):
             # Sample actions
             value, action, action_log_prob, states, action_prob = actor_critic.act(
-                    Variable(rollouts.observations[step], volatile=True),
-                    Variable(rollouts.states[step], volatile=True),
-                    Variable(rollouts.masks[step], volatile=True))
+                    Variable(rollouts.observations[step], requires_grad = False),
+                    Variable(rollouts.states[step], requires_grad = False),
+                    Variable(rollouts.masks[step], requires_grad = False))
             cpu_actions = action.data.squeeze(1).cpu().numpy()
             
             # Obser reward and next obs
@@ -149,16 +152,16 @@ def main():
             if args.use_icm:
                 bonus = actor_critic.get_bonus(
                         args.eta,
-                        Variable(rollouts.observations[step], volatile=True),
-                        Variable(current_obs, volatile=True),
+                        Variable(rollouts.observations[step], requires_grad = False),
+                        Variable(current_obs, requires_grad = False),
                         Variable(action.data),
                         Variable(action_prob.data))
                 reward = (reward + bonus.data.cpu())#.clamp(-1.0, 1.0)
             rollouts.insert(current_obs, states.data, action.data, action_log_prob.data, value.data, reward, masks)
 
-        next_value = actor_critic.get_value(Variable(rollouts.observations[-1], volatile=True),
-                                            Variable(rollouts.states[-1], volatile=True),
-                                            Variable(rollouts.masks[-1], volatile=True)).data
+        next_value = actor_critic.get_value(Variable(rollouts.observations[-1], requires_grad = False),
+                                            Variable(rollouts.states[-1], requires_grad = False),
+                                            Variable(rollouts.masks[-1], requires_grad = False)).data
 
         rollouts.compute_returns(next_value, args.use_gae, args.gamma, args.tau)
 
@@ -208,7 +211,7 @@ def main():
             loss.backward()
 
             if args.algo == 'a2c':
-                nn.utils.clip_grad_norm(actor_critic.parameters(), args.max_grad_norm)
+                nn.utils.clip_grad_norm_(actor_critic.parameters(), args.max_grad_norm)
 
             optimizer.step()
         elif args.algo == 'ppo':
@@ -229,7 +232,8 @@ def main():
                             adv_targ = sample
 
                     # Reshape to do in a single forward pass for all steps
-                    values, action_log_probs, dist_entropy, states = actor_critic.evaluate_actions(
+                    #value, action_log_probs, dist_entropy, states, action_probs
+                    values, action_log_probs, dist_entropy, states, action_probs = actor_critic.evaluate_actions(
                             Variable(observations_batch),
                             Variable(states_batch),
                             Variable(masks_batch),
@@ -245,7 +249,7 @@ def main():
 
                     optimizer.zero_grad()
                     (value_loss + action_loss - dist_entropy * args.entropy_coef).backward()
-                    nn.utils.clip_grad_norm(actor_critic.parameters(), args.max_grad_norm)
+                    nn.utils.clip_grad_norm_(actor_critic.parameters(), args.max_grad_norm)
                     optimizer.step()
 
         rollouts.after_update()

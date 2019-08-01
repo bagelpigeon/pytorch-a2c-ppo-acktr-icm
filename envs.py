@@ -6,6 +6,10 @@ from gym.spaces.box import Box
 from baselines import bench
 from baselines.common.atari_wrappers import make_atari, wrap_deepmind
 
+import gym_super_mario_bros
+from gym_super_mario_bros.actions import SIMPLE_MOVEMENT
+from nes_py.wrappers import JoypadSpace
+
 try:
     import dm_control2gym
 except ImportError:
@@ -20,7 +24,10 @@ except ImportError:
 
 def make_env(env_id, seed, rank, log_dir):
     def _thunk():
-        if env_id.startswith("dm"):
+        if "mario" in env_id:
+            env = gym_super_mario_bros.make('SuperMarioBros-v0')
+            env = JoypadSpace(env, SIMPLE_MOVEMENT)
+        elif env_id.startswith("dm"):
             _, domain, task = env_id.split('.')
             env = dm_control2gym.make(domain_name=domain, task_name=task)
         else:

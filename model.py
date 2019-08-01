@@ -14,7 +14,7 @@ def weights_init(m):
 def weights_init_head(m):
     classname = m.__class__.__name__
     if classname.find('Conv') != -1 or classname.find('Linear') != -1:
-        torch.nn.init.orthogonal(m.weight)
+        torch.nn.init.orthogonal_(m.weight)
         m.weight.data.mul_(nn.init.calculate_gain('relu'))
         m.bias.data.fill_(0)
 
@@ -27,14 +27,19 @@ class NatureHead(torch.nn.Module):
         self.conv1 = nn.Conv2d(n, 32, kernel_size=(8, 8), stride=(4, 4))
         self.conv2 = nn.Conv2d(32, 64, kernel_size=(4, 4), stride=(2, 2))
         self.conv3 = nn.Conv2d(64, 32, kernel_size=(3, 3), stride=(1, 1))
-        self.dense = nn.Linear(32 * 7 * 7, 512)
+        self.dense = nn.Linear(32*28*26, 512)
         self.output_size = 512
     
     def forward(self, state):
         output = F.relu(self.conv1(state))
         output = F.relu(self.conv2(output))
         output = F.relu(self.conv3(output))
-        output = F.relu(self.dense(output.view(-1, 32 * 7 * 7)))
+        #this is for regular environments
+        #output = F.relu(self.dense(output.view(-1, 32 * 7 * 7)))
+
+        #for mario env only
+
+        output = F.relu(self.dense(output.view(-1, 32*28*26)))
         return output
 
 class UniverseHead(torch.nn.Module):
