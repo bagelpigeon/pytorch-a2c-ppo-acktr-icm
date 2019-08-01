@@ -42,12 +42,29 @@ def make_env(env_id, seed, rank, log_dir):
             env = wrap_deepmind(env, clip_rewards=False)
         # If the input has shape (W,H,3), wrap for PyTorch convolutions
         obs_shape = env.observation_space.shape
-        if len(obs_shape) == 3 and obs_shape[2] in [1, 3]:
+        if "mario" in env_id:
+            env = wrap_deepmind(env, clip_rewards=False, episode_life=False)
+            env = WrapPyTorchMario(env)
+        elif len(obs_shape) == 3 and obs_shape[2] in [1, 3]:
             env = WrapPyTorch(env)
+
         return env
 
     return _thunk
 
+class WrapPyTorchMario(gym.ObservationWrapper):
+    def __init__(self, env=None):
+        super(WrapPyTorchMario, self).__init__(env)
+        obs_shape = self.observation_space.shape
+        self.observation_space = Box(
+            self.observation_space.low[0,0,0],
+            self.observation_space.high[0,0,0],
+            [obs_shape[2], obs_shape[1], obs_shape[0]],
+            self.observation_space.dtype,
+        )
+
+    def observation(self, observation):
+        return observation.transpose(2, 1, 0)
 
 class WrapPyTorch(gym.ObservationWrapper):
     def __init__(self, env=None):

@@ -99,8 +99,6 @@ def main():
         obs = torch.from_numpy(obs).float()
         if args.num_stack > 1:
             current_obs[:, :-shape_dim0] = current_obs[:, shape_dim0:]
-        if "mario" in args.env_name:
-            current_obs[:, -shape_dim0:] = obs#.permute(0, 1, 3, 2)
         else:
             current_obs[:, -shape_dim0:] = obs
 
